@@ -3,34 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <title>Arduino Master Terminal 2026</title>
-    <!-- FIXES the favicon.ico 404 error by providing an empty icon link -->
+    <!-- FIX: Stops the 'favicon.ico 404' error from clogging your console -->
     <link rel="icon" href="data:,">
     
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #eee; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .box { background: #1e1e1e; padding: 20px; border-radius: 10px; width: 100%; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
-        input, button { padding: 12px; margin: 5px 0; border-radius: 6px; border: 1px solid #444; width: 100%; box-sizing: border-box; font-size: 14px; }
-        input { background: #2c2c2c; color: #fff; }
-        button { background: #007bff; color: white; font-weight: bold; cursor: pointer; border: none; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #121212; color: #eee; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .box { background: #1e1e1e; padding: 25px; border-radius: 12px; width: 100%; max-width: 650px; box-shadow: 0 10px 30px rgba(0,0,0,0.7); border: 1px solid #333; }
+        h2 { color: #007bff; margin-top: 0; }
+        .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        input, button { padding: 12px; border-radius: 6px; border: 1px solid #444; width: 100%; box-sizing: border-box; font-size: 14px; }
+        input { background: #2c2c2c; color: #fff; outline: none; }
+        input:focus { border-color: #007bff; }
+        button { background: #007bff; color: white; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
         button:hover { background: #0056b3; }
-        #terminal { background: #000; color: #00ff00; height: 300px; overflow-y: auto; padding: 15px; border: 1px solid #333; margin-top: 10px; font-family: 'Courier New', monospace; text-align: left; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        #terminal { background: #000; color: #00ff00; height: 300px; overflow-y: auto; padding: 15px; border: 1px solid #333; margin-top: 15px; font-family: 'Courier New', monospace; font-size: 13px; border-radius: 6px; }
+        .cmd-row { display: flex; gap: 10px; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div class="box">
-        <h3>1. NTFY Configuration</h3>
-        <input type="text" id="topic" placeholder="Enter ntfy Topic Name">
-        <input type="password" id="token" placeholder="Access Token (Optional)">
+        <h2>Arduino Master Terminal</h2>
         
-        <button id="connectBtn">2. Connect Arduino</button>
+        <div class="config-row">
+            <div>
+                <label style="font-size: 12px; color: #888;">NTFY TOPIC</label>
+                <input type="text" id="topic" placeholder="e.g. my_arduino_alerts">
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #888;">ACCESS TOKEN (OPTIONAL)</label>
+                <input type="password" id="token" placeholder="tk_xxxxxxxxxxxx">
+            </div>
+        </div>
+
+        <button id="connectBtn">CONNECT TO ARDUINO</button>
         
-        <h3 style="margin-top:20px;">3. Serial Terminal</h3>
-        <div id="terminal">System: Waiting for connection...</div>
+        <div id="terminal">System: Ready. Please enter topic and connect.</div>
         
-        <div style="display: flex; gap: 5px; margin-top: 10px;">
-            <input type="text" id="cmd" placeholder="Type command to Arduino...">
-            <button id="sendBtn" style="width: 80px;">Send</button>
+        <div class="cmd-row">
+            <input type="text" id="cmd" placeholder="Send command to Arduino...">
+            <button id="sendBtn" style="width: 100px; background: #28a745;">SEND</button>
         </div>
     </div>
 
@@ -38,23 +51,28 @@
         let port, writer;
         const terminal = document.getElementById('terminal');
 
-        function log(msg, color = "#0ff") {
-            terminal.innerHTML += `<div style="color:${color}">> ${msg}</div>`;
+        // Clean logging function
+        function log(msg, color = "#00ff00") {
+            const time = new Date().toLocaleTimeString();
+            terminal.innerHTML += `<div style="color:${color}"><span style="color:#666">[${time}]</span> > ${msg}</div>`;
             terminal.scrollTop = terminal.scrollHeight;
         }
 
-        // Unified Function: Sends to phone via proxy to bypass DNS blocks
+        // THE MASTER NOTIFICATION FUNCTION
         async function triggerAlert(message) {
             const topic = document.getElementById('topic').value.trim();
             const token = document.getElementById('token').value.trim();
             
             if (!topic) {
-                log("Error: Topic name required!", "red");
+                log("ERROR: Topic Name is required to send notifications!", "red");
                 return;
             }
 
+            log(`Sending notification to [${topic}]...`, "yellow");
+
+            // PROXY BYPASS: Uses Heroku proxy to kill DNS blocks and CORS errors
             const proxy = 'https://cors-anywhere.herokuapp.com';
-            const target = `https://ntfy.sh{topic}`;
+            const target = `https://ntfy.sh{topic}`; 
             
             const headers = { 
                 'Title': 'Arduino Alert',
@@ -66,57 +84,68 @@
                 const response = await fetch(proxy + target, { 
                     method: 'POST', 
                     body: message, 
-                    headers: headers
+                    headers: headers 
                 });
 
                 if (response.ok) {
-                    log("Ntfy: SUCCESS! Message Delivered.", "#0f0");
+                    log("SUCCESS: Notification delivered to your phone!", "#0f0");
                 } else if (response.status === 403) {
-                    log("Proxy Error: Visit ://cors-anywhere.herokuapp.com and click 'Request Access'.", "orange");
+                    log("PROXY BLOCKED: Visit ://cors-anywhere.herokuapp.com and click Access.", "red");
                 } else {
-                    log(`Ntfy Server Error: ${response.status}`, "orange");
+                    log(`SERVER REFUSED: Status ${response.status}`, "orange");
                 }
             } catch (e) {
-                log(`Network Blocked: ${e.message}`, "red");
+                log(`NETWORK CRASHED: ${e.message}`, "red");
             }
         }
 
+        // COMMAND SENDER (To Arduino)
         document.getElementById('sendBtn').onclick = async () => {
             const val = document.getElementById('cmd').value;
-            if (!writer) return log("Error: Not Connected", "red");
-            const encoder = new TextEncoder();
-            await writer.write(encoder.encode(val + "\n"));
-            log(`Sent to Arduino: ${val}`, "#fff");
-            document.getElementById('cmd').value = "";
+            if (!writer) return log("ERROR: Not connected to Arduino!", "red");
+            
+            try {
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(val + "\n"));
+                log(`COMMAND SENT: ${val}`, "#fff");
+                document.getElementById('cmd').value = "";
+            } catch (e) {
+                log(`WRITE ERROR: ${e.message}`, "red");
+            }
         };
 
+        // SERIAL READER (From Arduino)
         document.getElementById('connectBtn').onclick = async () => {
             try {
+                // Request Serial Port
                 port = await navigator.serial.requestPort();
                 await port.open({ baudRate: 9600 });
+                
                 document.getElementById('connectBtn').disabled = true;
-                log("SERIAL OPENED", "#fff");
+                log("SERIAL CONNECTION ESTABLISHED", "#fff");
 
+                // Setup Streams
                 writer = port.writable.getWriter();
                 const textDecoder = new TextDecoderStream();
                 port.readable.pipeTo(textDecoder.writable);
                 const reader = textDecoder.readable.getReader();
 
+                // Reading Loop
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
                     if (value) {
                         const msg = value.trim();
-                        log(msg, "#0f0");
+                        log(msg, "#00ff00");
                         
-                        // Keywords are case-sensitive. Arduino MUST send "ALERT" in caps.
-                        if (msg.includes("ALERT")) {
+                        // Case-insensitive check for the trigger word 'ALERT'
+                        if (msg.toUpperCase().includes("ALERT")) {
                             triggerAlert(msg);
                         }
                     }
                 }
             } catch (e) { 
-                log(`Error: ${e.message}`, "red"); 
+                log(`SERIAL ERROR: ${e.message}`, "red"); 
             }
         };
     </script>
