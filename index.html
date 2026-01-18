@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Arduino Master Terminal 2026 (Proxy Fix)</title>
+    <title>Arduino Master Terminal 2026</title>
+    <!-- FIXES the favicon.ico 404 error by providing an empty icon link -->
+    <link rel="icon" href="data:,">
+    
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #eee; padding: 20px; display: flex; flex-direction: column; align-items: center; }
         .box { background: #1e1e1e; padding: 20px; border-radius: 10px; width: 100%; max-width: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.6); }
@@ -16,9 +19,10 @@
 <body>
 
     <div class="box">
-        <h3>1. NTFY Proxy Setup</h3>
+        <h3>1. NTFY Configuration</h3>
         <input type="text" id="topic" placeholder="Enter ntfy Topic Name">
         <input type="password" id="token" placeholder="Access Token (Optional)">
+        
         <button id="connectBtn">2. Connect Arduino</button>
         
         <h3 style="margin-top:20px;">3. Serial Terminal</h3>
@@ -39,19 +43,22 @@
             terminal.scrollTop = terminal.scrollHeight;
         }
 
+        // Unified Function: Sends to phone via proxy to bypass DNS blocks
         async function triggerAlert(message) {
             const topic = document.getElementById('topic').value.trim();
             const token = document.getElementById('token').value.trim();
             
-            if (!topic) return log("Error: Topic required!", "red");
+            if (!topic) {
+                log("Error: Topic name required!", "red");
+                return;
+            }
 
-            // PROXY BYPASS: Sending through cors-anywhere to avoid DNS blocks
             const proxy = 'https://cors-anywhere.herokuapp.com';
             const target = `https://ntfy.sh{topic}`;
             
             const headers = { 
-                'Title': 'Arduino Update',
-                'X-Requested-With': 'XMLHttpRequest' // Required by proxy
+                'Title': 'Arduino Alert',
+                'X-Requested-With': 'XMLHttpRequest' 
             };
             if (token) headers['Authorization'] = `Bearer ${token}`;
 
@@ -63,14 +70,14 @@
                 });
 
                 if (response.ok) {
-                    log("Proxy: Message Sent to ntfy!", "#0f0");
+                    log("Ntfy: SUCCESS! Message Delivered.", "#0f0");
                 } else if (response.status === 403) {
-                    log("Proxy Error: You must click 'Request Access' at the cors-anywhere demo link!", "orange");
+                    log("Proxy Error: Visit ://cors-anywhere.herokuapp.com and click 'Request Access'.", "orange");
                 } else {
-                    log(`Server Error: ${response.status}`, "orange");
+                    log(`Ntfy Server Error: ${response.status}`, "orange");
                 }
             } catch (e) {
-                log(`Proxy Blocked: ${e.message}`, "red");
+                log(`Network Blocked: ${e.message}`, "red");
             }
         }
 
@@ -101,6 +108,8 @@
                     if (value) {
                         const msg = value.trim();
                         log(msg, "#0f0");
+                        
+                        // Keywords are case-sensitive. Arduino MUST send "ALERT" in caps.
                         if (msg.includes("ALERT")) {
                             triggerAlert(msg);
                         }
@@ -113,3 +122,4 @@
     </script>
 </body>
 </html>
+
