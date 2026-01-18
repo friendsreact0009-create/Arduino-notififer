@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Dashboard 2026</title>
+    <style>
+        :root { --bg: #0a0a0c; --glass: rgba(255, 255, 255, 0.05); --accent: #8a2be2; --text: #e0e0e0; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: var(--glass); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 24px; width: 90%; max-width: 600px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+        h2 { margin-top: 0; font-weight: 300; letter-spacing: 1px; color: var(--accent); }
+        #terminal { height: 250px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; font-family: 'Fira Code', monospace; font-size: 13px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .controls { display: grid; gap: 12px; }
+        .row { display: flex; gap: 10px; }
+        input { flex: 1; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 10px; color: #fff; outline: none; transition: 0.3s; }
+        input:focus { border-color: var(--accent); background: rgba(255,255,255,0.1); }
+        button { background: var(--accent); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        button:hover { opacity: 0.8; transform: translateY(-1px); }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .label { font-size: 12px; color: #888; margin-bottom: 4px; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Serial Dashboard</h2>
+        
+        <div class="controls">
+            <div>
+                <span class="label">NTFY TOPIC</span>
+                <input type="text" id="ntfyTopic" placeholder="e.g. my_private_alerts" value="arduino_logs">
+            </div>
+
+            <div id="terminal"></div>
+
+            <div class="row">
+                <input type="text" id="cmd" placeholder="Command to Arduino...">
+                <button id="sendBtn">Send</button>
+            </div>
+            
+            <button id="connectBtn" style="width: 100%; background: #333;">Connect via Web Serial</button>
+        </div>
+    </div>
+
+    <script>
+        let port, writer;
+
+        function log(msg, color = "#0f0") {
+            const term = document.getElementById('terminal');
+            const time = new Date().toLocaleTimeString([], { hour12: false });
+            term.innerHTML += `<div style="margin-bottom:4px"><span style="color:#666">[${time}]</span> <span style="color:${color}">${msg}</span></div>`;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        async function sendToNtfy(msg) {
+            const topic = document.getElementById('ntfyTopic').value.trim();
+            if (!topic) return;
+            try {
+                await fetch(`https://ntfy.sh{topic}`, { method: 'POST', body: msg });
+            } catch (e) { console.error("Ntfy failed", e); }
+        }
+
+        document.getElementById('sendBtn').onclick = async () => {
+            const val = document.getElementById('cmd').value;
+            if (!writer) return log("Error: Not Connected", "#ff4444");
+            await writer.write(new TextEncoder().encode(val + "\n"));
+            log(`TX: ${val}`, "#8a2be2");
+            document.getElementById('cmd').value = "";
+        };
+
+        document.getElementById('connectBtn').onclick = async () => {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 });
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('connectBtn').innerText = "Connected";
+                log("System Online", "#8a2be2");
+
+                writer = port.writable.getWriter();
+                const textDecoder = new TextDecoderStream();
+                port.readable.pipeTo(textDecoder.writable);
+                const reader = textDecoder.readable.getReader();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        const msg = value.trim();
+                        if (msg) {
+                            log(`RX: ${msg}`);
+                            sendToNtfy(msg);
+                        }
+                    }
+                }
+            } catch (e) { log(`Error: ${e.message}`, "#ff4444"); }
+        };
+    </script>
+</body>
+</html>
