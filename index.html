@@ -51,13 +51,33 @@
             term.scrollTop = term.scrollHeight;
         }
 
-        async function sendToNtfy(msg) {
-            const topic = document.getElementById('ntfyTopic').value.trim();
-            if (!topic) return;
-            try {
-                await fetch(`https://ntfy.sh{topic}`, { method: 'POST', body: msg });
-            } catch (e) { console.error("Ntfy failed", e); }
+       async function triggerAlert(message) {
+    const topic = document.getElementById('topic').value.trim();
+    const token = document.getElementById('token').value.trim();
+    if (!topic) return;
+
+    // Use HTTPS strictly for GitHub Pages compatibility
+    const url = `https://ntfy.sh{topic}`;
+    const headers = { 'Title': 'Arduino Update' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+        await fetch(url, { 
+            method: 'POST', 
+            body: message, 
+            headers: headers,
+            mode: 'cors' // Ensure CORS is enabled for cross-domain GitHub requests
+        });
+        log("GitHub: Sent to ntfy!", "#0f0");
+    } catch (e) {
+        log(`Network Blocked: ${e.message}`, "red");
+        // FALLBACK: Local notification if network is blocked by GitHub policies
+        if (Notification.permission === "granted") {
+            new Notification("Arduino Alert", { body: message });
         }
+    }
+}
+
 
         document.getElementById('sendBtn').onclick = async () => {
             const val = document.getElementById('cmd').value;
@@ -96,3 +116,4 @@
     </script>
 </body>
 </html>
+
